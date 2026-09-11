@@ -8,6 +8,7 @@ sandbox, plus supporting tools.
 | Path | Purpose |
 |:-----|:--------|
 | `docs/backup-design.md` | Research paper: measured compressibility + backup architecture for the disposable VM |
+| `docs/vm-content-boundary.md` | Research paper: what must be inside the VM vs. read-only-referenced from host via virtiofs |
 | `scrap/compress_measure.py` | Tool to measure how well a directory tree compresses (gzip/zstd by file class) |
 
 ## Measurement tool

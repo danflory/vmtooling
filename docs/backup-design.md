@@ -108,6 +108,7 @@ static between days.
 | Content | Include in VM | Backup treatment |
 |:--------|:--------------|:-----------------|
 | dev_env source (Overwatch, Gravitas, tooling) | yes | In VM disk; git is the source of truth — **exclude .git from VM backup**, rely on remotes |
+| `~/Documents/` (incl. `Private_research/theory/`) | **yes** | **Must back up nightly** — small (442 MB), high-value personal content; include in the subset backup (D-4) alongside jcode memory |
 | Postgres (firecontrol + others) | yes | **Must back up** — logical dump (`pg_dump`) or WAL archiving; compressible 4.6x |
 | node_modules / build artifacts | yes (as needed) | **Exclude from backup** — reproducible via lockfiles |
 | Git LFS blobs | yes | Exclude — content-addressable, re-fetchable |
@@ -199,6 +200,7 @@ When compression IS applied (to the subset backups and DB dumps):
 | D-4 | Nightly borg/restic of the small compressible+stateful subset | True off-host copy, dedup, encryption |
 | D-5 | Use zstd, not gzip, everywhere compression is applied | Faster + better ratio (measured) |
 | D-6 | Exclude .git, node_modules, LFS, build artifacts from file backups | Reproducible / re-fetchable; git is source of truth |
+| D-7 | Include `~/Documents/` in the nightly subset backup (D-4) | Personal, high-value, small (442 MB); operator decision 2026-09-11 that Documents is part of the VM |
 
 ## 8. Open questions
 
