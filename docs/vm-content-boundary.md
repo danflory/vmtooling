@@ -59,25 +59,26 @@ The VM is the new workstation for these; the host keeps no authoritative copy:
 | Content | Why |
 |:--------|:----|
 | `~/Documents/` (incl. `Private_research/theory/`) | Operator decision 2026-09-11 (DAR-OW-158 RD-5); personal, high-value |
-| Active Overwatch clone(s) being worked (e.g. Overwatch_5 / DAR branches) | Writable working tree; git remote is the sync channel |
+| **All Overwatch clones** (`Overwatch`, `Overwatch_1..5`) | Operator decision 2026-09-11 (RD-7): Overwatch is inside the VM |
+| **Gravitas** (+ its data) | Operator decision 2026-09-11 (RD-7): inside the VM; the brutal GPU workload being contained |
+| **GSBE** | Operator decision 2026-09-11 (RD-7): inside the VM |
 | Postgres (firecontrol + others) | Stateful; VM root manages it |
 | jcode config / memory / sessions | The agent's own state |
-| Gravitas + its data | The brutal GPU workload being contained |
 | The VM itself (OS, hypervisor tooling, backup scripts) | — |
 
 ### Tier 2 — Host-resident, read-only-referenced (do NOT copy into VM)
 
-Non-personal development clones and bulk code that the VM can reach via
-virtiofs read-only. Operator's question targets exactly this tier:
+Non-personal development clones and bulk code that the VM can reach via a
+**virtiofs read-only mount limited to `dev_env/`** (operator decision 2026-09-11,
+DAR-OW-158 RD-6). The VM may read anything under the host `dev_env/` tree, but
+**nothing outside `dev_env/`** is shared (no `~/Documents` host copy, no home
+dirs, no system paths).
 
 | Host path | Notes |
 |:----------|:------|
-| `dev_env/Overwatch`, `Overwatch_1..4` | Clone duplicates; active one (Overwatch_5) is Tier 1; the rest are reference/backups |
-| `dev_env/Cline` (5 GB) | Non-personal upstream-tracking clone |
-| `dev_env/anki`, `txtai`, `unstructured`, `crawlee-python`, `foam`, etc. | Reference/experiment repos |
-| `dev_env/private_projects_SECRET_LOCAL` (8.1 GB) | Sensitive; keep host-side, do not ship into VM |
+| `dev_env/` (whole tree, read-only) | Non-personal clones and bulk code (Cline, anki, txtai, etc.) referenced in place; Overwatch/Gravitas/GSBE are Tier 1, not here |
+| `dev_env/private_projects_SECRET_LOCAL` (8.1 GB) | Sensitive; stays host-side, never copied into VM; read-only reference only |
 | `dev_env/*/node_modules`, `.git` objects | Bulk/incompressible; never copied |
-| `Gravitas`'s repo history, `GSBE`, other governed projects | Read-only reference unless actively worked |
 
 ### Tier 3 — NEVER inside the VM (host-only secrets/authority)
 
@@ -92,18 +93,19 @@ virtiofs read-only. Operator's question targets exactly this tier:
 
 With virtiofs, "migration" is not "copy everything":
 
-1. **Copy Tier 1** into the VM (Documents 442 MB, active clone, DB dumps, config).
-2. **Do not copy Tier 2.** Mount `dev_env` (or per-repo subtrees) read-only
-   into the VM at e.g. `/mnt/host/dev_env`.
+1. **Copy Tier 1** into the VM (Documents 442 MB, all Overwatch clones,
+   Gravitas, GSBE, DB dumps, config).
+2. **Do not copy the rest of Tier 2.** Mount `dev_env/` read-only into the VM
+   at e.g. `/mnt/host/dev_env` (limited to `dev_env/`, per RD-6).
 3. **Verify** the VM can run Overwatch tooling against the read-only mount
-   where reads are all that's needed; any clone the operator actively works
-   moves up to Tier 1 (writable in-VM copy) at that point.
+   where reads are all that's needed; governed projects (Overwatch/Gravitas/
+   GSBE) are already writable in-VM per RD-7.
 4. **Secrets stay put** (Tier 3) on the host; the VM gets only what its work
    requires.
 
-This shrinks the VM disk from "84 GB dev_env" to roughly Tier 1 only
-(Documents 442 MB + active clone + OS + DB), making daily backups tiny and
-restores fast — reinforcing the disposable posture.
+This keeps the VM disk to Tier 1 only (Documents + Overwatch clones +
+Gravitas + GSBE + OS + DB) rather than the full 84 GB dev_env, making daily
+backups smaller and restores faster — reinforcing the disposable posture.
 
 ## 5. Open questions / decisions
 
