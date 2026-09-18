@@ -1,0 +1,21 @@
+<!-- YubiKey 5 (OTP+FIDO+CCID) USB passthrough for the `sandbox` domain.
+     DAR-OW-158 / N17 "Provision FIDO2/USB signing into sandbox" - Part A.
+
+     Host device: 1050:0407  "Yubikey 4/5 OTP+U2F+CCID"
+       iface 0 = OTP HID (usbhid)   -> not used by ow_sign
+       iface 1 = FIDO HID (usbhid)  -> /dev/hidraw, used by python-fido2
+       iface 2 = CCID (OpenPGP/PIV) -> needs pcscd in-guest (not required for FIDO2)
+
+     Matched by vendor/product (not bus/port) so the key can move between host
+     USB ports without editing this file. managed='yes' makes libvirt unbind the
+     host usbhid driver on attach and rebind it on detach.
+
+     Use the helper: sandbox-fido on | off | status
+     (wraps: virsh attach-device sandbox <this file> live)
+-->
+<hostdev mode='subsystem' type='usb' managed='yes'>
+  <source>
+    <vendor id='0x1050'/>
+    <product id='0x0407'/>
+  </source>
+</hostdev>

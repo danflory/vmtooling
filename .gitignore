@@ -6,3 +6,6 @@ __pycache__/
 # Local measurement artifacts
 scrap/output/
 *.measure.json
+
+# Local domain-XML snapshots taken before live VM changes
+backups/
