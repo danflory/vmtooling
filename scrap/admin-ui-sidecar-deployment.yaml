@@ -1,0 +1,89 @@
+{{- if .Values.adminUiSidecar.enabled }}
+{{- if or (empty .Values.adminUiSidecar.image.tag) (eq .Values.adminUiSidecar.image.tag "latest") }}
+{{- fail "adminUiSidecar.image.tag must be a versioned release tag (e.g. v2026.07.31.6-ubuntu-fips). 'latest' is banned per DAR-CRI-002 RD-1." }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-ui-sidecar
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "overwatch.labels" . | nindent 4 }}
+    component: admin-ui-sidecar
+  annotations:
+    compliance.overwatch.io/fips-boundary: "container"
+    compliance.overwatch.io/fips-cmvp: "4282"
+    compliance.overwatch.io/justification: "DAR-OW-117 Host Kernel Gap"
+spec:
+  replicas: {{ .Values.adminUiSidecar.replicas }}
+  # hostPort pins this pod to a node port. A RollingUpdate then deadlocks: the
+  # surge pod cannot bind the port the incumbent pod still holds, so it stays
+  # Pending and the incumbent is never terminated. Recreate terminates first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "overwatch.selectorLabels" . | nindent 6 }}
+      component: admin-ui-sidecar
+  template:
+    metadata:
+      labels:
+        {{- include "overwatch.selectorLabels" . | nindent 8 }}
+        component: admin-ui-sidecar
+      annotations:
+        compliance.overwatch.io/fips-boundary: "container"
+        compliance.overwatch.io/fips-cmvp: "4282"
+        compliance.overwatch.io/justification: "DAR-OW-117 Host Kernel Gap"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: admin-ui-sidecar
+          image: "{{ .Values.adminUiSidecar.image.repository }}:{{ .Values.adminUiSidecar.image.tag }}"
+          imagePullPolicy: {{ .Values.adminUiSidecar.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.adminUiSidecar.port }}
+              hostPort: {{ .Values.adminUiSidecar.port }}
+          env:
+            # The endpoint is assembled in admin-ui-sidecar-secret.yaml from the
+            # chart's single governed source (database.agentConnection.host +
+            # database.port). No port literal is copied into this artifact.
+            # Authority: OPF-010 "Literal ports are a violation".
+            - name: FIRECONTROL_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: admin-ui-sidecar-dsn
+                  key: FIRECONTROL_DSN
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          resources:
+            {{- toYaml .Values.adminUiSidecar.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
+          startupProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.adminUiSidecar.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.adminUiSidecar.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.adminUiSidecar.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+{{- end }}

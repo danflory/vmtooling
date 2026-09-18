@@ -1,0 +1,19 @@
+{{- if .Values.adminUiSidecar.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-ui-sidecar
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "overwatch.labels" . | nindent 4 }}
+    component: admin-ui-sidecar
+spec:
+  selector:
+    {{- include "overwatch.selectorLabels" . | nindent 4 }}
+    component: admin-ui-sidecar
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.adminUiSidecar.port }}
+      targetPort: {{ .Values.adminUiSidecar.port }}
+{{- end }}
