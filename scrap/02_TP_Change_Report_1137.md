@@ -16,9 +16,9 @@ phase: DEVELOPMENT
 scope:
 - path: docs/praca/SPR/SPR-1137_Migration_lint_gate_and_runtime_sidecar_use_different_squawk_binaries/02_TP_Change_Report.md
   access: ro
-severity: 3
+severity: 1
 type: SPR.TP_CHANGE
-version: "2026_09_18_18_36"
+version: "2026_09_18_19_47"
 ---
 
 # Migration lint gate and runtime sidecar use different squawk binaries — TP Change Report
@@ -31,7 +31,9 @@ version: "2026_09_18_18_36"
 
 ## Affected TP
 
-- **TP Reference**: **none** — no executable TP covers either artifact.
+- **TP Reference**: **none at creation** (`tp_gap_category: no_tp`). No executable TP covers
+  either artifact; a TP must be scaffolded to carry the steps below before the fix lands
+  (doSPR2 Phase 1.5 requires the TP to exist and to FAIL pre-fix).
 - **Parent Artifact**: `RFC-OW-271` Squawk Sidecar Lint Gate (UDRS 40175); the gate it must
   agree with came from `RFC-OW-256` (UDRS 39275).
 
@@ -52,15 +54,21 @@ contributing mechanism.
 
 ## Steps Added / Modified
 
-| # | Step | Expected Result | New/Modified |
-|:--|:-----|:----------------|:-------------|
-| 1 | On a clean clone, run the A6 gate against a compliant staged migration with no manual installs. | PASS, and `gate_sql_lint.py` reports the squawk path it used. FAILS pre-fix (no squawk in a fresh venv; hand-placed binary required). | New |
-| 2 | Compare the gate's squawk version to the version inside the migration-sidecar image (`k3s kubectl exec … -c migration-sidecar -- squawk --version`). | Identical strings. FAILS pre-fix (2.65.0 vs 2.59.0). | New |
-| 3 | Lint one deliberately non-compliant migration at both stages (gate and sidecar entrypoint) and compare the verdicts. | Same verdict, same rule. FAILS pre-fix whenever a rule differs between the two versions. | New |
-| 4 | Assert the vendored `firecontrol/docker/squawk-linux-x86_64` SHA-256 equals the pinned value and that the path is a registered CI. | Match, and registered. | New |
+One step per VCL, mapped to the break it detects. All are binary assertions.
+
+| # | Step | Covers | Expected Result | New/Modified |
+|:--|:-----|:-------|:----------------|:-------------|
+| 1 | From a clean checkout with no manual installs, run the A6 gate against a compliant staged migration. | V-2 (B-2) | PASS, and the gate reports the squawk path it used. **FAILS pre-fix**: a fresh venv has no squawk, so the gate raises `FileNotFoundError` and blocks. | New |
+| 2 | Assert the gate's resolved squawk path is the repository-vendored artifact (no `sys.executable`-relative resolution anywhere in the gate). | V-1 (B-1) | Path equals `firecontrol/docker/squawk-linux-x86_64`. **FAILS pre-fix** (resolves to `.venv/bin/squawk`). | New |
+| 3 | Compare the gate's squawk version to the version inside the running migration-sidecar image. | V-3 (B-1) | Identical strings. **FAILS pre-fix** (2.65.0 vs 2.59.0). | New |
+| 4 | Assert the hand-placed `.venv/bin/squawk` is absent after provisioning from the repository, and that `setup_venv.sh` + `requirements*.txt` account for both gate engines. | V-1, V-2 (B-2) | No hand-placed binary; squawk and sqlfluff both provisioned and pinned. **FAILS pre-fix**. | New |
+| 5 | Lint one deliberately non-compliant migration at both stages (A6 gate and sidecar entrypoint) and compare verdicts. | V-4 (B-1) | Same verdict from both stages. **FAILS pre-fix** whenever a rule differs between the two versions. | New |
+| 6 | Assert the vendored binary is a registered CI and that its SHA-256 matches the pinned value. | V-5 (B-3) | Registered, hash matches. **FAILS pre-fix** (not registered). | New |
 
 ## Verification
 
-Running these steps in the pre-fix state must **FAIL** (step 1 has no binary in a fresh venv;
-step 2 reports 2.65.0 vs 2.59.0; step 3 can diverge) and in the post-fix state must **PASS**.
-Steps 1 and 2 are the ones that would have caught this defect at the moment RFC-OW-271 landed.
+Running these steps in the pre-fix state must **FAIL** — measured 2026-09-18: step 1 fails in 3
+of the 6 guest clones today (Overwatch_1 has no venv; Overwatch_3 and Overwatch_5 have venvs
+without squawk), step 2 resolves to the venv copy, step 3 reports 2.65.0 vs 2.59.0, and step 6
+finds no registration. In the post-fix state all six must PASS. Steps 1 and 3 are the ones that
+would have caught this defect the moment RFC-OW-271 landed.

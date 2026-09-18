@@ -16,9 +16,9 @@ phase: DEVELOPMENT
 scope:
 - path: docs/praca/SPR/SPR-1137_Migration_lint_gate_and_runtime_sidecar_use_different_squawk_binaries/01_Deficiency_Report.md
   access: ro
-severity: 3
+severity: 1
 type: SPR.DEFICIENCY
-version: "2026_09_18_18_36"
+version: "2026_09_18_19_45"
 ---
 
 # Migration lint gate and runtime sidecar use different squawk binaries — Deficiency Report
@@ -38,6 +38,17 @@ engine was treated as environment plumbing ("the linter on PATH") rather than as
 artifact, so the verdict is not reproducible from the repository, and the two stages that
 must agree were never compared.
 
+## Break-by-break analysis
+
+The anchor defects three breaks (B-1..B-3). Each is traced to the design decisions that
+produced it.
+
+| Break | Design decisions that produced it | Why it was not caught |
+|:------|:----------------------------------|:----------------------|
+| **B-1** rule divergence | The gate resolves the engine from `Path(sys.executable).parent` (venv-local); the image vendors its own copy; no artifact asserted they must match. | No TP and no check compared the two stages. The versions drifted upstream (2.59.0 → 2.65.0) without any repository change, so nothing was reviewable. |
+| **B-2** not reproducible | `setup_venv.sh` installs `sqlfluff` but not `squawk`; neither is pinned in `requirements*.txt`; the gate's binary is hand-placed. | The gate fails closed, so the missing binary looks like a strict gate rather than a broken environment. Nothing asserted the gate can run from a clean checkout. |
+| **B-3** ungoverned artifact | The binary was vendored for the *image* (RFC-OW-271) and registered its config (`.squawk.toml`, UDRS 42031) but not itself. | Registration focused on the text artifacts a gate consumes; a binary build input was treated as an asset rather than a CI. |
+
 ## What the Original Design Got Wrong
 
 | Decision | What it got wrong |
@@ -50,15 +61,19 @@ must agree were never compared.
 
 ## Impact Assessment
 
-- **Verification integrity**: the commit gate is a governance gate (A6). If it lints with a
-  different engine than the runtime, then "lint passed" is not evidence about the cluster, and
+- **Verification integrity (B-1)**: the commit gate is a governance gate (A6). If it lints with
+  a different engine than the runtime, then "lint passed" is not evidence about the cluster, and
   a migration can be admitted that the runtime lint will reject — or blocked for a rule the
   runtime does not enforce. The gate's verdict is not reproducible from the repository.
-- **Developer/agent experience**: a fresh clone has no gate binary at all. The failure is a
-  `FileNotFoundError` traceback that blocks every migration commit until someone hand-installs
-  squawk — fail-closed (correct) but with no actionable message.
-- **Drift detection**: nothing would have reported the 2.65.0/2.59.0 divergence; it was found
-  only by comparing sizes and versions by hand.
+  *Measured 2026-09-18*: the two versions currently agree on all 251 corpus files (identical 42
+  flagged), so this is a latent risk, not an active wrong verdict.
+- **Work stoppage (B-2, active)**: on a fresh clone or rebuilt venv the gate has no binary. It
+  raises `FileNotFoundError`, exits non-zero, and the dispatcher counts it as BLOCKED — so
+  **every commit touching a migration fails until squawk is hand-installed.** Fail-closed, which
+  is the correct direction for governance, but it is a hard stop with no actionable message and
+  no repository path to recovery.
+- **Governance gap (B-3)**: the binary the runtime trusts is not a registered CI, so it is
+  invisible to the identity and write-path machinery that governs its own `.squawk.toml`.
 - **Same class as two defects already recorded today**: a mechanism (here, the gate's engine)
   exists in two places with no single source of truth. That is the pattern of the withdrawn
   N10/N11 jcode share (two plausible homes) and the vestigial native Postgres (two plausible
@@ -77,6 +92,10 @@ reach a venv); *sources and versions* may not.
 **Rule: assert the agreement, do not assume it.** The stage that can silently disagree with the
 runtime is exactly the stage that needs the assertion. A one-line version equality check
 between the gate and the image is what turns this class of drift into a failure.
+
+**Rule: a gate must be runnable from a clean checkout.** If provisioning the gate's own
+dependencies is not in the repository's setup path, the gate is not reproducible and its
+failures are indistinguishable from environment breakage.
 
 ## Convergence Pattern Check
 

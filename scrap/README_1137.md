@@ -16,7 +16,7 @@ phase: DEVELOPMENT
 scope:
 - path: docs/praca/SPR/SPR-1137_Migration_lint_gate_and_runtime_sidecar_use_different_squawk_binaries/README.md
   access: ro
-severity: 3
+severity: 1
 type: SPR.README
 version: "2026_09_18_18_37"
 ---
