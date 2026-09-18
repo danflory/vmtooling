@@ -85,12 +85,15 @@ def main() -> int:
     bad.write_text("-- fixture: non-compliant\nALTER TABLE auth.udrs ADD COLUMN tp206_probe int NOT NULL;\n")
     rc_v, out_v = run(MAIN, "firecontrol/docker/squawk-linux-x86_64", str(bad))
     rc_c, out_c = run(MAIN, "sudo", "-n", "k3s", "kubectl", "exec", "-i", "-n", "overwatch",
-                      "firecontrol-db-0", "-c", "migration-sidecar", "--", "squawk", "-",
+                      "firecontrol-db-0", "-c", "migration-sidecar", "--", "sh", "-c",
+                      "cat > /tmp/tp206_bad.sql; squawk /tmp/tp206_bad.sql; rc=$?; "
+                      "rm -f /tmp/tp206_bad.sql; exit $rc",
                       stdin=bad.read_text())
+    findings_match = out_v.count("issue") == out_c.count("issue")
     bad.unlink(missing_ok=True)
     verdicts_match = (rc_v != 0) == (rc_c != 0)
     record(5, "V-4/B-1", "PASS" if verdicts_match else "FAIL",
-           f"vendored exit={rc_v} in-image exit={rc_c} (same verdict: {verdicts_match})")
+           f"vendored exit={rc_v} in-image exit={rc_c} (same verdict: {verdicts_match}, same finding count: {findings_match})")
 
     # Step 6 — vendored binary is a governed CI?
     rc_s, sha = run(MAIN, "sha256sum", "firecontrol/docker/squawk-linux-x86_64")
